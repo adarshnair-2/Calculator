@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Calculator — HTML CSS JS</title>
+  <link rel="stylesheet" href="styles.css">
+  
+</head>
+<body>
+  <div class="calculator" role="application" aria-label="Calculator">
+    <div class="screen" aria-hidden="false">
+      <div id="expression" class="expression" aria-live="polite"></div>
+      <div id="result" class="result" aria-live="polite">0</div>
+    </div>
+
+    <div class="keys">
+      <button class="key" data-action="clear" title="Clear (Esc)">AC</button>
+      <button class="key" data-action="back" title="Backspace (Backspace)">DEL</button>
+      <button class="key" data-action="percent" title="Percent (%)">%</button>
+      <button class="key operator" data-value="/" title="Divide">÷</button>
+
+      <button class="key" data-value="7">7</button>
+      <button class="key" data-value="8">8</button>
+      <button class="key" data-value="9">9</button>
+      <button class="key operator" data-value="*" title="Multiply">×</button>
+
+      <button class="key" data-value="4">4</button>
+      <button class="key" data-value="5">5</button>
+      <button class="key" data-value="6">6</button>
+      <button class="key operator" data-value="-" title="Minus">−</button>
+
+      <button class="key" data-value="1">1</button>
+      <button class="key" data-value="2">2</button>
+      <button class="key" data-value="3">3</button>
+      <button class="key operator" data-value="+" title="Plus">+</button>
+
+      <button class="key double" data-value="0">0</button>
+      <button class="key" data-value=".">.</button>
+      <button class="key equal" data-action="equals" title="Equals (Enter)">=</button>
+    </div>
+
+    <div class="hint">Tip: You can also use keyboard — numbers, + - * /, Enter (=), Backspace, Esc (AC), %</div>
+  </div>
+  <script>
+    (function(){
+      const exprEl = document.getElementById('expression');
+      const resultEl = document.getElementById('result');
+      let expression = '';
+
+      function updateUI(){
+        exprEl.textContent = expression || '';
+        resultEl.textContent = expression ? tryEvaluate(expression) : '0';
+      }
+
+      function insert(str){
+        // avoid multiple operators in a row (except minus for negative)
+        const last = expression.slice(-1);
+        if (/^[+\-*/.]$/.test(last) && /^[+*/.]$/.test(str)) return; // prevent e.g. ++ or /*
+        if (str === '.' ){
+          // prevent multiple decimals in current number
+          const parts = expression.split(/[^0-9.]/);
+          if (parts[parts.length-1].includes('.')) return;
+        }
+        expression += str;
+        updateUI();
+      }
+
+      function clearAll(){ expression=''; updateUI(); }
+      function backspace(){ expression = expression.slice(0,-1); updateUI(); }
+
+      // Convert percent: replace occurrences like 50% with (50/100)
+      function sanitizeForEval(expr){
+        // disallow anything but digits, operators, parentheses, dot and %
+        if (!/^[-+*/()0-9. %]*$/.test(expr)) return null;
+        // replace all occurrences of number% with (number/100)
+        expr = expr.replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
+        return expr;
+      }
+
+      function tryEvaluate(expr){
+        const sanitized = sanitizeForEval(expr);
+        if (sanitized === null) return 'Error';
+        try{
+          // eslint-disable-next-line no-new-func
+          const val = Function('return ' + sanitized)();
+          if (val === Infinity || val === -Infinity || Number.isNaN(val)) return 'Error';
+          // format: if integer show as-is, else round to 10 decimals and trim
+          if (Number.isInteger(val)) return String(val);
+          return String(Number(val.toFixed(10))).replace(/\.0+$/,'');
+        }catch(e){
+          return '';
+        }
+      }
+
+      function evaluateNow(){
+        const sanitized = sanitizeForEval(expression);
+        if (sanitized === null) { resultEl.textContent='Error'; return; }
+        try{
+          const val = Function('return ' + sanitized)();
+          expression = (val === undefined ? '' : String(val));
+          updateUI();
+        }catch(e){ resultEl.textContent='Error'; }
+      }
+
+      // wire buttons
+      document.querySelectorAll('button.key').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const v = btn.dataset.value;
+          const action = btn.dataset.action;
+          if (action === 'clear'){ clearAll(); return; }
+          if (action === 'back'){ backspace(); return; }
+          if (action === 'equals'){ evaluateNow(); return; }
+          if (action === 'percent'){
+            // apply percent to last number in expression
+            const parts = expression.match(/(.*?)(\d+(?:\.\d+)?)$/);
+            if (parts){ expression = parts[1] + '(' + parts[2] + '/100)'; updateUI(); }
+            return;
+          }
+          if (v) insert(v);
+        });
+      });
+
+      // keyboard support
+      window.addEventListener('keydown', (e)=>{
+        if (e.key === 'Enter'){ e.preventDefault(); evaluateNow(); }
+        else if (e.key === 'Backspace'){ e.preventDefault(); backspace(); }
+        else if (e.key === 'Escape'){ e.preventDefault(); clearAll(); }
+        else if (e.key === '%'){ e.preventDefault(); document.querySelector('[data-action="percent"]').click(); }
+        else if (/^[0-9]$/.test(e.key)) { insert(e.key); }
+        else if (e.key === '.' ) { insert('.'); }
+        else if (e.key === '+' || e.key === '-' || e.key === '*' || e.key === '/'){ insert(e.key); }
+      });
+
+      // init
+      updateUI();
+    })();
+  </script>
+</body>
+</html>
